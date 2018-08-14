@@ -4,8 +4,10 @@ import com.didispace.scca.core.domain.*;
 import com.didispace.scca.core.service.PersistenceService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.config.environment.Environment;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.Properties;
 
 /**
@@ -40,6 +42,10 @@ public class DbPersistenceService implements PersistenceService {
         }
 
         return properties;
+    }
+
+    @Override public Map<String, Object> readProperties(Environment env, String application, String profile, String label) {
+        return null;
     }
 
     @Override

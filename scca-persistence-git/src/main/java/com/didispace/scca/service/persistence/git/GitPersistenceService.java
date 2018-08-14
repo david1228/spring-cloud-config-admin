@@ -3,6 +3,8 @@ package com.didispace.scca.service.persistence.git;
 import com.didispace.easyutils.cmd.CmdRunner;
 import com.didispace.easyutils.file.FileUtils;
 import com.didispace.easyutils.file.PropertiesUtils;
+import com.didispace.scca.core.convert.ConversionStatus;
+import com.didispace.scca.core.convert.PropertiesToYamlConverter;
 import com.didispace.scca.core.domain.Env;
 import com.didispace.scca.core.domain.Label;
 import com.didispace.scca.core.domain.Project;
@@ -10,8 +12,11 @@ import com.didispace.scca.core.service.PersistenceService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.config.environment.Environment;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -39,7 +44,6 @@ public class GitPersistenceService implements PersistenceService {
             // git checkout branch(label)
             CmdRunner.execute("git checkout " + label, new File(projectInfo.getDir()));
 
-            // load propertiesFile content
             properties = PropertiesUtils.loadProperties(projectInfo.getPath());
         } catch (Exception e) {
             e.printStackTrace();
@@ -47,6 +51,16 @@ public class GitPersistenceService implements PersistenceService {
             FileUtils.deleteDirectory(new File(projectInfo.getDir()));
         }
         return properties;
+    }
+
+    @Override
+    public Map<String, Object> readProperties(Environment env, String application, String profile, String label) {
+        String propertiesFile = getPropertiesFile(application, profile, label, gitProperties);
+        return  EnvironmentConverter.convert(env, propertiesFile);
+    }
+
+    private boolean isYmlLayout(String path) {
+        return (path.endsWith(".yml") ||  path.endsWith(".yaml"));
     }
 
     @Override
@@ -131,14 +145,24 @@ public class GitPersistenceService implements PersistenceService {
             // git checkout branch(label)
             CmdRunner.execute("git checkout " + label, new File(projectInfo.getDir()));
 
-            // read propertiesFile before upddate, write properties, read propertiesFile after update
-            log.debug("---------------- properties before update ----------------");
-            PropertiesUtils.printProperties(projectInfo.getPath(), true);
-            log.debug("---------------- properties after update ----------------");
-            PropertiesUtils.printProperties(update, true);
-
-            // store update properties
-            PropertiesUtils.store(update, projectInfo.getPath(), "Write by scca, more information see : https://github.com/dyc87112/spring-cloud-config-admin");
+            if (isYmlLayout(projectInfo.getPath())) {
+                // convert properties to yml
+                PropertiesToYamlConverter.YamlConversionResult result = new PropertiesToYamlConverter().convert(update);
+                if (result.getSeverity() != ConversionStatus.OK) {
+                    throw new IllegalStateException("Problem during conversion: \n" + result.getStatus().getEntries());
+                }
+                try (FileWriter writer = new FileWriter(projectInfo.getPath())) {
+                    writer.append(result.getYaml());
+                }
+            } else {
+                // read propertiesFile before upddate, write properties, read propertiesFile after update
+                log.debug("---------------- properties before update ----------------");
+                PropertiesUtils.printProperties(projectInfo.getPath(), true);
+                log.debug("---------------- properties after update ----------------");
+                PropertiesUtils.printProperties(update, true);
+                // store update properties
+                PropertiesUtils.store(update, projectInfo.getPath(), "Write by scca, more information see : https://github.com/dyc87112/spring-cloud-config-admin");
+            }
 
             // commit & push
             CmdRunner.execute("git add .", new File(projectInfo.getDir()));
@@ -150,7 +174,6 @@ public class GitPersistenceService implements PersistenceService {
         } finally {
             FileUtils.deleteDirectory(new File(projectInfo.getDir()));
         }
-
     }
 
     @Override
@@ -181,20 +204,34 @@ public class GitPersistenceService implements PersistenceService {
         public ProjectInfo(String application, String profile, String label, SccaGitProperties gitProperties) {
             // 组织配置项目的git地址
             this.projectUrl = gitProperties.getRepoUri().replaceFirst("\\{application\\}", application);
-            String propertiesFile = gitProperties.getFilePattern()
-                    .replaceFirst("\\{application\\}", application)
-                    .replaceFirst("\\{profile\\}", profile);
+            String propertiesFile = getPropertiesFile(application, profile, label, gitProperties);
 
             // 生成本地拉取配置用来修改使用的唯一目录名
-            this.dir = UUID.randomUUID().toString();
+            this.dir = gitProperties.getBaseDir() + "/" + UUID.randomUUID().toString();
+            String basePath = gitProperties.getBasePath().replaceFirst("\\{application\\}", application);
+
             // 获取要修改文件的相对路径
-            this.path = this.dir + gitProperties.getBasePath() + "/" + propertiesFile;
+            this.path = this.dir + basePath + "/" + propertiesFile;
+//            this.path = this.dir + gitProperties.getBasePath() + "/" + propertiesFile;
             log.debug("update file : " + this.path);
 
             // projectUrl append username & password， git clone projectUrl
             this.projectUrl = this.projectUrl.replaceFirst("http://", "http://" + gitProperties.getUsername() + ":" + gitProperties.getPassword() + "@");
             log.debug("project url : " + this.projectUrl);
         }
-
     }
+
+    private String getPropertiesFile(String application, String profile, String label, SccaGitProperties gitProperties) {
+        String propertiesFile = gitProperties.getFilePattern()
+                .replaceFirst("\\{application\\}", application)
+                .replaceFirst("\\{profile\\}", profile);
+        // application-profile.yml and profile equals default -> application.yml
+        if ("default".equals(profile)) {
+            propertiesFile = gitProperties.getFilePattern()
+                    .replaceFirst("\\{application\\}", application)
+                    .replaceFirst("-\\{profile\\}", "");
+        }
+        return propertiesFile;
+    }
+
 }

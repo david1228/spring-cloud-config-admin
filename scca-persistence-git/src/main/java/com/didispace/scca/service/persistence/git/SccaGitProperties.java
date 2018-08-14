@@ -36,6 +36,11 @@ public class SccaGitProperties {
     private String basePath = "";
 
     /**
+     * Git配置仓库的本地目录，与config-server中配置的Git仓库的本地仓库路径对应
+     */
+    private String baseDir = "./temp";
+
+    /**
      * Git存储的配置文件名称规则，比如：
      *
      * - application-{profile}.properties

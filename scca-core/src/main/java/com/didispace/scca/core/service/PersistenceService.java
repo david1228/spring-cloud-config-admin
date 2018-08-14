@@ -3,7 +3,9 @@ package com.didispace.scca.core.service;
 import com.didispace.scca.core.domain.Env;
 import com.didispace.scca.core.domain.Label;
 import com.didispace.scca.core.domain.Project;
+import org.springframework.cloud.config.environment.Environment;
 
+import java.util.Map;
 import java.util.Properties;
 
 /**
@@ -27,6 +29,17 @@ public interface PersistenceService {
      */
     Properties readProperties(String application, String profile, String label);
 
+    /**
+     * 根据环境配置获取某个配置文件
+     *
+     * @param env         - 环境配置
+     * @param application - 应用名称
+     * @param profile     - 环境名称
+     * @param label       - 版本名称
+     * @return
+     * @autor David.Liu
+     */
+    Map<String, Object> readProperties(Environment env, String application, String profile, String label);
 
     /**
      * 删除某个环境下所有项目所有版本的配置文件

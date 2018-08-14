@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: letv-mas-test
+server:
+  port: 12000
+
+logging:
+  level:
+    org:
+      springframework:
+        web:
+          servlet: error
+
+list:
+  data1:
+    ac: 1
+    cc: 3
+    bc: 2
+  data: 'aa,bb'
+  'data2[1]':
+    yy: 4
+    xx: 3
+  'data2[0]':
+    yy: 2
+    xx: 1
+  data3:
+   - ff: '1'
+     gg: '2'
+   - zz: '4'
+     ss: 1

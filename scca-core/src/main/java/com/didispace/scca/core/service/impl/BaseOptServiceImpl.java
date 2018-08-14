@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.springframework.util.StringUtils.tokenizeToStringArray;
+
 /**
  * Created by 程序猿DD/翟永超 on 2018/4/24.
  * <p>
@@ -30,6 +32,7 @@ public class BaseOptServiceImpl implements BaseOptService {
 
     private String encryptPath = "/encrypt";
     private String decryptPath = "/decrypt";
+    private final String REGEX = "^http://.+:.+@{1}.*$";
 
     private OkHttpClient okHttpClient = buildOkHttpClient();
 
@@ -82,10 +85,8 @@ public class BaseOptServiceImpl implements BaseOptService {
     @SneakyThrows
     private String callGet(String url) {
         log.info("call get : " + url);
-        Request request = new Request.Builder()
-                .url(url)
-                .get()
-                .build();
+        Request request = request(url);
+
 
         Call call = okHttpClient.newCall(request);
         Response response = call.execute();
@@ -111,10 +112,7 @@ public class BaseOptServiceImpl implements BaseOptService {
     @SneakyThrows
     private Environment callGetProperties(String url) {
         log.info("call get properties : " + url);
-        Request request = new Request.Builder()
-                .url(url)
-                .get()
-                .build();
+        Request request = request(url);
 
         Call call = okHttpClient.newCall(request);
         Response response = call.execute();
@@ -122,6 +120,25 @@ public class BaseOptServiceImpl implements BaseOptService {
 
         ObjectMapper mapper = new ObjectMapper();
         return mapper.readValue(responseBody.string(), Environment.class);
+    }
+
+    @SneakyThrows
+    private Request request(String url) {
+        Request request = null;
+        if (url.matches(REGEX)) {
+            String userPass = tokenizeToStringArray(url, "@")[0].replaceFirst("http://", "");
+            request = new Request.Builder()
+                    .header("Authorization", Credentials.basic(userPass.split(":")[0],userPass.split(":")[1]))
+                    .url(url)
+                    .get()
+                    .build();
+        } else {
+            request = new Request.Builder()
+                    .url(url)
+                    .get()
+                    .build();
+        }
+        return request;
     }
 
     private OkHttpClient buildOkHttpClient() {
